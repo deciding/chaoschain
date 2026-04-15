@@ -238,62 +238,34 @@ class WalletManager:
 
     def get_wallet_balance(self, agent_name: str) -> float:
         """
-        Get ETH balance for an agent's wallet.
+        Get the native token balance for an agent's wallet.
 
         Args:
             agent_name: Name of the agent
 
         Returns:
-            ETH balance as float
+            Balance in native token (e.g., ETH, A0GI)
         """
-        if agent_name not in self.wallets:
-            self.create_or_load_wallet(agent_name)
-
-        address = self.wallets[agent_name].address
-        balance_wei = self.w3.eth.get_balance(address)
-        return self.w3.from_wei(balance_wei, "ether")
-
-    def get_usdc_balance(self, agent_name: str, usdc_contract_address: str) -> float:
-        """
-        Get USDC balance for an agent's wallet.
-
-        Args:
-            agent_name: Name of the agent
-            usdc_contract_address: USDC contract address
-
-        Returns:
-            USDC balance as float
-        """
-        if agent_name not in self.wallets:
-            self.create_or_load_wallet(agent_name)
-
-        # USDC contract ABI (minimal)
-        usdc_abi = [
-            {
-                "constant": True,
-                "inputs": [{"name": "_owner", "type": "address"}],
-                "name": "balanceOf",
-                "outputs": [{"name": "balance", "type": "uint256"}],
-                "type": "function",
-            },
-            {
-                "constant": True,
-                "inputs": [],
-                "name": "decimals",
-                "outputs": [{"name": "", "type": "uint8"}],
-                "type": "function",
-            },
-        ]
-
         try:
-            contract = self.w3.eth.contract(address=usdc_contract_address, abi=usdc_abi)
-            address = self.wallets[agent_name].address
-            balance = contract.functions.balanceOf(address).call()
-            decimals = contract.functions.decimals().call()
-            return balance / (10**decimals)
+            address = self.get_wallet_address(agent_name)
+            balance_wei = self.w3.eth.get_balance(address)
+            return self.w3.from_wei(balance_wei, "ether")
         except Exception as e:
-            rprint(f"[red]❌ Error getting USDC balance: {e}[/red]")
+            rprint(f"[red]❌ Failed to get balance: {e}[/red]")
             return 0.0
+
+    def get_private_key(self, agent_name: str) -> str:
+        """
+        Get the private key for signing transactions.
+
+        Args:
+            agent_name: Name of the agent
+
+        Returns:
+            Private key hex string
+        """
+        account = self.create_or_load_wallet(agent_name)
+        return account.key.hex()
 
     def send_transaction(
         self,
