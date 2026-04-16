@@ -941,9 +941,31 @@ class PaymentManager:
 
             # Get nonce and gas price
             nonce = self.wallet_manager.w3.eth.get_transaction_count(from_address)
+            base_fee = self.wallet_manager.w3.eth.get_block("latest")["baseFeePerGas"]
             gas_price = self.wallet_manager.w3.eth.gas_price
 
-            # Build native transfer transaction
+            # 0G testnet requires minimum 2 Gwei for both maxFeePerGas and maxPriorityFeePerGas
+            min_gas_price = 2000000000  # 2 Gwei in wei
+            if gas_price < min_gas_price:
+                gas_price = min_gas_price
+
+            # Calculate EIP-1559 fees with guaranteed minimums
+            base_fee = self.wallet_manager.w3.eth.get_block("latest")["baseFeePerGas"]
+            max_fee_per_gas = max(
+                gas_price * 2, min_gas_price * 2
+            )  # At least 4 Gwei max fee
+            max_priority_fee = max(
+                gas_price, min_gas_price
+            )  # At least 2 Gwei priority (use higher of network gas_price or min)
+
+            # Ensure priority fee meets minimum exactly
+            if max_priority_fee < min_gas_price:
+                max_priority_fee = min_gas_price
+
+            chain_id = self.wallet_manager.w3.eth.chain_id
+            rprint(
+                f"[yellow]⚠️ Using EIP-1559: maxFee={max_fee_per_gas}, priority={max_priority_fee} (min 2 Gwei)[/yellow]"
+            )
             tx_params = {
                 "from": from_address,
                 "to": to_address,
@@ -951,8 +973,10 @@ class PaymentManager:
                     amount, "ether"
                 ),  # A0GI uses ether units (same as ETH)
                 "gas": 21000,  # Standard gas for native transfer
-                "gasPrice": gas_price,
+                "maxFeePerGas": max_fee_per_gas,
+                "maxPriorityFeePerGas": max_priority_fee,
                 "nonce": nonce,
+                "chainId": chain_id,
             }
 
             # Estimate gas
